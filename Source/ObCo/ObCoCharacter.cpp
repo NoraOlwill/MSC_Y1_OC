@@ -10,6 +10,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "Components/BoxComponent.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -40,16 +41,34 @@ AObCoCharacter::AObCoCharacter()
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 
 	// Create a camera boom (pulls in towards the player if there is a collision)
-	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
-	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
-	CameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
+	ThirdPersonCameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom1"));
+	ThirdPersonCameraBoom->SetupAttachment(RootComponent);
+	ThirdPersonCameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
+	ThirdPersonCameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
 
 	// Create a follow camera
-	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
-	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
+	ThirdPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera1"));
+	ThirdPersonCamera->SetupAttachment(ThirdPersonCameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
+	ThirdPersonCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
+
+
+	// Create a camera boom (pulls in towards the player if there is a collision)
+	FirstPersonCameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom2"));
+	FirstPersonCameraBoom->SetupAttachment(RootComponent);
+	FirstPersonCameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
+	FirstPersonCameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
+
+	// Create a follow camera
+	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera2"));
+	FirstPersonCamera->SetupAttachment(FirstPersonCameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
+	FirstPersonCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
+
+	bCamSwitch = false;
+
+	//init box comp
+	PushingVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("PushingVolume"));
+	PushingVolume->SetupAttachment(RootComponent);
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
@@ -71,6 +90,26 @@ void AObCoCharacter::NotifyControllerChanged()
 	}
 }
 
+void AObCoCharacter::OnPush()
+{
+	FVector Location;
+	FRotator Rotation;
+	GetController()->GetPlayerViewPoint(Location, Rotation);
+	FVector PushDirection = Rotation.Vector();
+
+	TArray<AActor*> MyActors;
+	PushingVolume-> GetOverlappingActors(MyActors);
+
+	for (int i = 0; i < MyActors.Num(); i++)
+	{
+		if (ACharacter* pushable = Cast<ACharacter>(MyActors[i]))
+		{
+			pushable->LaunchCharacter(PushDirection * pushingStrength, false, false);
+		}
+
+	}
+}
+
 void AObCoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	// Set up action bindings
@@ -85,6 +124,12 @@ void AObCoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AObCoCharacter::Look);
+
+		// Pushing
+		EnhancedInputComponent->BindAction(PushAction, ETriggerEvent::Started, this, &AObCoCharacter::OnPush);
+
+		// Camera Switching
+		EnhancedInputComponent->BindAction(CamAction, ETriggerEvent::Completed, this, &AObCoCharacter::CamSwitch);
 	}
 	else
 	{
@@ -125,5 +170,28 @@ void AObCoCharacter::Look(const FInputActionValue& Value)
 		// add yaw and pitch input to controller
 		AddControllerYawInput(LookAxisVector.X);
 		AddControllerPitchInput(LookAxisVector.Y);
+	}
+}
+
+void AObCoCharacter::CamSwitch()
+{
+
+	if (bCamSwitch == true)
+	{
+		bCamSwitch = false;
+
+		ThirdPersonCamera->SetActive(false);
+		FirstPersonCamera->SetActive(true);
+	
+		bUseControllerRotationYaw = true;
+	}
+	else if (bCamSwitch == false)
+	{
+		bCamSwitch = true;
+
+		ThirdPersonCamera->SetActive(true);
+		FirstPersonCamera->SetActive(false);
+
+		bUseControllerRotationYaw = false;
 	}
 }
