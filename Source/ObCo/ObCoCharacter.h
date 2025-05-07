@@ -3,9 +3,9 @@
 #pragma once
 
 
+#include "CoreMinimal.h" // Ensure this is included only once
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
-#include "CoreMinimal.h" // Ensure this is included only once
 #include "Components/BoxComponent.h"
 #include "ObCoCharacter.generated.h"
 
@@ -51,6 +51,7 @@ class AObCoCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* MoveAction;
 
+	/** Move Cam Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* CamAction;
 
@@ -58,9 +59,6 @@ class AObCoCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* LookAction;
 
-	/** Push Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	UInputAction* PushAction;
 
 public:
 	AObCoCharacter();
@@ -71,6 +69,8 @@ protected:
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
+
+	void BeginPlay();
 
 	/** Called for Camera input */
 	void CamSwitch();
@@ -95,12 +95,4 @@ private:
 
 	bool bCamSwitch;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Pushing")
-	class UBoxComponent* PushingVolume;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Pushing")
-	float pushingStrength = 1000.0f;
-
-private:
-	void OnPush();
 };

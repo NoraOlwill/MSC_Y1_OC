@@ -66,9 +66,12 @@ AObCoCharacter::AObCoCharacter()
 
 	bCamSwitch = false;
 
-	//init box comp
-	PushingVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("PushingVolume"));
-	PushingVolume->SetupAttachment(RootComponent);
+	// First person camera setup
+	FirstPersonCameraBoom->SetupAttachment(RootComponent);
+	FirstPersonCameraBoom->TargetArmLength = 0.0f; // Zero length for first person
+	FirstPersonCameraBoom->SetRelativeLocation(FVector(0, 0, 50.0f)); // Adjust to eye level
+	FirstPersonCamera->SetRelativeLocation(FVector(10.0f, 0.0f, 0.0f)); // Slight forward offset
+
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
@@ -90,25 +93,6 @@ void AObCoCharacter::NotifyControllerChanged()
 	}
 }
 
-void AObCoCharacter::OnPush()
-{
-	FVector Location;
-	FRotator Rotation;
-	GetController()->GetPlayerViewPoint(Location, Rotation);
-	FVector PushDirection = Rotation.Vector();
-
-	TArray<AActor*> MyActors;
-	PushingVolume-> GetOverlappingActors(MyActors);
-
-	for (int i = 0; i < MyActors.Num(); i++)
-	{
-		if (ACharacter* pushable = Cast<ACharacter>(MyActors[i]))
-		{
-			pushable->LaunchCharacter(PushDirection * pushingStrength, false, false);
-		}
-
-	}
-}
 
 void AObCoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -124,9 +108,6 @@ void AObCoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AObCoCharacter::Look);
-
-		// Pushing
-		EnhancedInputComponent->BindAction(PushAction, ETriggerEvent::Started, this, &AObCoCharacter::OnPush);
 
 		// Camera Switching
 		EnhancedInputComponent->BindAction(CamAction, ETriggerEvent::Completed, this, &AObCoCharacter::CamSwitch);
@@ -173,25 +154,38 @@ void AObCoCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
+void AObCoCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Set third person camera active by default, regardless of bCamSwitch value
+	bCamSwitch = true;  // Force this to true to ensure third-person is active
+	ThirdPersonCamera->SetActive(true);
+	FirstPersonCamera->SetActive(false);
+	bUseControllerRotationYaw = false;
+}
+
 void AObCoCharacter::CamSwitch()
 {
+	bCamSwitch = !bCamSwitch;
 
-	if (bCamSwitch == true)
+	if (bCamSwitch)
 	{
-		bCamSwitch = false;
-
-		ThirdPersonCamera->SetActive(false);
-		FirstPersonCamera->SetActive(true);
-	
-		bUseControllerRotationYaw = true;
-	}
-	else if (bCamSwitch == false)
-	{
-		bCamSwitch = true;
-
 		ThirdPersonCamera->SetActive(true);
 		FirstPersonCamera->SetActive(false);
 
 		bUseControllerRotationYaw = false;
 	}
+	else
+	{
+		ThirdPersonCamera->SetActive(false);
+		FirstPersonCamera->SetActive(true);
+		bUseControllerRotationYaw = true;
+	}
+
+	// Optional: Save camera preference
+	// if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	// {
+	//     UGameplayStatics::SaveGameToSlot(YourSaveGameObject, "CameraPrefs", 0);
+	// }
 }
